@@ -193,7 +193,7 @@
     
     <div class="card">
       <label for="correo">📧 Correo electrónico de cuenta Bancarlo:</label>
-      <input type="email" id="correo" placeholder="ejemplo@correo.com">
+      <input type="email" id="correo" placeholder="tucorreo@gmail.com">
 
       <div class="contador-contenedor">
         <div class="pantalla">
@@ -241,12 +241,10 @@
   let acumuladoCashback = parseFloat(localStorage.getItem("t_cashback")) || 0.00;
   let acumuladoPuntos = parseInt(localStorage.getItem("t_puntos")) || 0;
   let historialTransacciones = JSON.parse(localStorage.getItem("h_transacciones")) || [];
-  let correoGuardado = localStorage.getItem("correo_ticket") || "";
 
   let transaccionActual = null;
 
   window.onload = () => {
-    if (correoGuardado) document.getElementById("correo").value = correoGuardado;
     actualizarMarcadores();
     actualizarHistorialVisual();
   };
@@ -293,16 +291,13 @@
         const nombreArchivo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const textoAnalisis = textoLimpio + " " + nombreArchivo;
 
-        // 1. Detección automática del comercio
         let comercioDetectado = comerciosOfertas.find(c => {
           return c.palabrasClave.some(palabra => textoAnalisis.includes(palabra));
         });
 
         let nombreEstablecimiento = comercioDetectado ? comercioDetectado.nombre : "Ticket de Consumo General";
 
-        // 2. DETECCIÓN POR EL NÚMERO MÁS GRANDE (Monto Total Garantizado)
         let montoCompra = 0;
-        // Captura cualquier número decimal aislado o acompañado en el formato tradicional de importes (ej. 468.93, 51.50)
         const regexNumeros = /\b([0-9]{1,5}\.[0-9]{2})\b/g;
         let coincidencias;
         let todosLosMontos = [];
@@ -313,19 +308,16 @@
           }
         }
 
-        // Si se encontraron montos numéricos, la app elige el más alto/grande como el total
         if (todosLosMontos.length > 0) {
           montoCompra = Math.max(...todosLosMontos);
         }
 
-        // --- VENTANA DE CORRECCIÓN INTELIGENTE DE SEGURIDAD ---
         let confirmNombre = prompt("Confirma o escribe el nombre del Establecimiento del ticket:", nombreEstablecimiento);
         if (confirmNombre) nombreEstablecimiento = confirmNombre;
 
         let confirmMonto = prompt("Confirma o introduce el Monto Total ($) exacto del ticket:", montoCompra > 0 ? montoCompra : "0.00");
         if (confirmMonto) montoCompra = parseFloat(confirmMonto) || 0;
 
-        // Buscar si el nombre ingresado o seleccionado coincide con las ofertas oficiales
         let comercioFinal = comerciosOfertas.find(c => 
           nombreEstablecimiento.toLowerCase().includes(c.nombre.toLowerCase()) ||
           c.palabrasClave.some(p => nombreEstablecimiento.toLowerCase().includes(p))
@@ -335,7 +327,6 @@
           comercioFinal = { nombre: nombreEstablecimiento, tipo: "cashback", valor: 0.03, min: 0 };
         }
 
-        // Asignación de los beneficios calculados
         let cashbackGanado = 0;
         let puntosGanados = 0;
         let mensajeRegla = "";
@@ -392,7 +383,6 @@
     }
     if (!transaccionActual) return;
 
-    localStorage.setItem("correo_ticket", correo);
     const userKey = cleanEmailKey(correo);
 
     database.ref('users/' + userKey).once('value').then((snapshot) => {
