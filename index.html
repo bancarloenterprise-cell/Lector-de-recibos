@@ -276,15 +276,57 @@
     document.getElementById("pantallaPuntos").innerText = `${acumuladoPuntos} pts`;
   }
 
-  // MODIFICADO: Valor cambiado de 0.05 a 0.025 (2.5%) para Salchichonería San Juan
+  // Lista de comercios oficiales con sus palabras clave para una coincidencia flexible
   const comerciosOfertas = [
-    { nombre: "Salchichonería San Juan", tipo: "cashback", valor: 0.025, min: 150 },
-    { nombre: "Farmacia Guadalajara", tipo: "cashback", valor: 0.10, min: 0 },
-    { nombre: "Gasolineras", tipo: "cashback", valor: 0.02, min: 0 },
-    { nombre: "Asturiano", tipo: "cashback", valor: 0.05, min: 0 },
-    { nombre: "The Italian Coffee", tipo: "puntos", valor: 60, min: 0 },
-    { nombre: "Que Bara", tipo: "puntos", valor: 25, min: 200 },
-    { nombre: "Walmart", tipo: "puntos", valor: 50, min: 3000 }
+    { 
+      nombre: "Salchichonería San Juan", 
+      palabrasClave: ["san", "juan", "salchichoneria", "cerdo", "embutidos"], 
+      tipo: "cashback", 
+      valor: 0.025, 
+      min: 150 
+    },
+    { 
+      nombre: "Farmacia Guadalajara", 
+      palabrasClave: ["farmacia", "guadalajara", "superfarma", "medicina"], 
+      tipo: "cashback", 
+      valor: 0.10, 
+      min: 0 
+    },
+    { 
+      nombre: "Gasolineras", 
+      palabrasClave: ["gas", "gasolina", "gasolinera", "combustible", "pemex", "oxxogas"], 
+      tipo: "cashback", 
+      valor: 0.02, 
+      min: 0 
+    },
+    { 
+      nombre: "Asturiano", 
+      palabrasClave: ["asturiano", "tienda", "abarrotes"], 
+      tipo: "cashback", 
+      valor: 0.05, 
+      min: 0 
+    },
+    { 
+      nombre: "The Italian Coffee", 
+      palabrasClave: ["italian", "coffee", "cafe", "the italian"], 
+      tipo: "puntos", 
+      valor: 60, 
+      min: 0 
+    },
+    { 
+      nombre: "Que Bara", 
+      palabrasClave: ["que bara", "bara", "bara bara"], 
+      tipo: "puntos", 
+      valor: 25, 
+      min: 200 
+    },
+    { 
+      nombre: "Walmart", 
+      palabrasClave: ["walmart", "supercenter", "wm"], 
+      tipo: "puntos", 
+      valor: 50, 
+      min: 3000 
+    }
   ];
 
   function procesarTicketOfertas(event) {
@@ -292,31 +334,36 @@
     if (!input.files || !input.files[0]) return;
 
     const file = input.files[0];
-    const nombreArchivo = file.name.toLowerCase();
+    // Normalizamos el nombre del archivo para remover acentos y pasarlo a minúsculas
+    const nombreArchivo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     const reader = new FileReader();
     reader.onload = function(e) {
       document.getElementById("imgPreview").src = e.target.result;
       document.getElementById("previewContainer").style.display = "block";
 
+      // --- ESCÁNER ULTRA FLEXIBLE DE PALABRAS CLAVE ---
       let comercio = comerciosOfertas.find(c => {
-        const nombreComercioNormalizado = c.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const archivoNormalizado = nombreArchivo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        
-        return archivoNormalizado.includes(nombreComercioNormalizado) || 
-               (nombreComercioNormalizado.includes("italian") && archivoNormalizado.includes("italian")) ||
-               (nombreComercioNormalizado.includes("san juan") && archivoNormalizado.includes("san juan"));
+        return c.palabrasClave.some(palabra => nombreArchivo.includes(palabra));
       });
 
+      // Si no encuentra coincidencia directa, se acepta como quiera como un ticket general de consumo
       if (!comercio) {
-        alert("⚠️ No se identificó un comercio asociado en el nombre del archivo. Se procesará como ticket genérico (Asturiano).");
-        comercio = comerciosOfertas.find(c => c.nombre === "Asturiano");
+        comercio = { nombre: "Ticket de Consumo General", tipo: "cashback", valor: 0.03, min: 0 };
       }
       
-      let montoCompra = parseFloat((Math.random() * (400 - 10) + 10).toFixed(2));
-      if (comercio.nombre === "Walmart") montoCompra = parseFloat((Math.random() * (4000 - 2500) + 2500).toFixed(2));
-      if (comercio.nombre === "Que Bara" && Math.random() > 0.5) montoCompra = parseFloat((Math.random() * (350 - 180) + 180).toFixed(2));
-      if (comercio.nombre === "Salchichonería San Juan") montoCompra = parseFloat((Math.random() * (300 - 140) + 140).toFixed(2));
+      // --- ESCÁNER DE MONTO TOTAL INTELIGENTE ---
+      // Genera montos realistas y simula la extracción del precio total del ticket
+      let montoCompra = parseFloat((Math.random() * (480 - 45) + 45).toFixed(2));
+      
+      if (comercio.nombre === "Walmart") {
+        montoCompra = parseFloat((Math.random() * (4200 - 3100) + 3100).toFixed(2));
+      } else if (comercio.nombre === "Que Bara") {
+        montoCompra = parseFloat((Math.random() * (380 - 190) + 190).toFixed(2));
+      } else if (comercio.nombre === "Salchichonería San Juan") {
+        // Asegura que en la San Juan el escáner detecte montos superiores al mínimo de la oferta ($150)
+        montoCompra = parseFloat((Math.random() * (500 - 160) + 160).toFixed(2));
+      }
 
       let cashbackGanado = 0;
       let puntosGanados = 0;
@@ -325,16 +372,16 @@
       if (comercio.tipo === "cashback") {
         if (montoCompra >= comercio.min) {
           cashbackGanado = montoCompra * comercio.valor;
-          mensajeRegla = `Aplica oferta del ${(comercio.valor * 100)}% de cashback.`;
+          mensajeRegla = `Aplica oferta del ${(comercio.valor * 100).toFixed(1)}% de cashback por tu compra.`;
         } else {
-          mensajeRegla = `No alcanzó el consumo mínimo de $${comercio.min} para cashback.`;
+          mensajeRegla = `No alcanzó el consumo mínimo de $${comercio.min} para esta promoción.`;
         }
       } else if (comercio.tipo === "puntos") {
         if (montoCompra >= comercio.min) {
           puntosGanados = comercio.valor;
-          mensajeRegla = `Aplica bonificación fija de +${comercio.valor} puntos.`;
+          mensajeRegla = `Aplica bonificación fija de +${comercio.valor} puntos Bancarlo.`;
         } else {
-          mensajeRegla = `No alcanzó el mínimo de $${comercio.min} para puntos.`;
+          mensajeRegla = `No alcanzó el monto mínimo de $${comercio.min} para asignación de puntos.`;
         }
       }
 
@@ -348,12 +395,12 @@
       const panelDetalles = document.getElementById("detallesTicket");
       panelDetalles.style.display = "block";
       panelDetalles.innerHTML = `
-        <strong>🏪 Establecimiento Detectado:</strong> ${comercio.nombre}<br>
-        <strong>📄 Archivo:</strong> ${file.name}<br>
-        <strong>💵 Total del Ticket:</strong> $${montoCompra.toFixed(2)}<br>
-        <strong>📢 Estado:</strong> ${mensajeRegla}<br>
+        <strong>🏪 Establecimiento Reconocido:</strong> ${comercio.nombre}<br>
+        <strong>📄 Archivo Analizado:</strong> ${file.name}<br>
+        <strong>💵 Monto Total Escaneado:</strong> $${montoCompra.toFixed(2)}<br>
+        <strong>📢 Estado de Validación:</strong> ${mensajeRegla}<br>
         <hr style="border:1px solid #333;">
-        <span style="color:#00ff66;">Ganancia: +$${cashbackGanado.toFixed(2)} | +${puntosGanados} Puntos</span>
+        <span style="color:#00ff66; font-weight:bold;">Beneficio Detectado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
       `;
 
       document.getElementById("btnSumar").style.display = "block";
@@ -412,7 +459,7 @@
         document.getElementById("foto-ticket").value = "";
         transaccionActual = null;
 
-        alert("✅ ¡Éxito! Cashback y Puntos transferidos correctamente a Firebase.");
+        alert("✅ ¡Éxito! El monto total escaneado se ha procesado. Cashback y Puntos transferidos a Firebase.");
       })
       .catch(() => alert("❌ Error en la transferencia de red con Firebase."));
     });
