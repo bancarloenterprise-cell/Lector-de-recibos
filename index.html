@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contador de Tickets - Bancarlo</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<style>
+  /* Configuración para abarcar toda la pantalla y permitir scroll */
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #000;
+    font-family: "Poppins", sans-serif;
+    color: #00ff66;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Contenedor envolvente de pantalla completa */
+  .wrapper {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding: 20px;
+  }
+
+  h1 {
+    color: #00ff66;
+    text-align: center;
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+
+  .card {
+    background-color: #111;
+    padding: 20px;
+    border-radius: 12px;
+    max-width: 450px;
+    width: 100%;
+    margin: 0 auto 20px auto;
+    box-shadow: 0 0 10px #00ff66;
+    box-sizing: border-box;
+  }
+
+  .contador-contenedor {
+    display: flex;
+    justify-content: space-between;
+    margin: 20px 0;
+  }
+
+  .pantalla {
+    flex: 1;
+    background-color: #222;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 0 5px;
+    border: 2px dashed #00ff66;
+    text-align: center;
+  }
+
+  .pantalla span {
+    display: block;
+    font-size: 0.8rem;
+    color: #888;
+  }
+
+  .pantalla div {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #fff;
+  }
+
+  label, input, button {
+    display: block;
+    width: 100%;
+    margin: 10px 0;
+    box-sizing: border-box;
+  }
+
+  input {
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    outline: none;
+    background-color: #222;
+    color: #fff;
+    font-size: 1rem;
+  }
+
+  input[type="file"] {
+    display: none;
+  }
+
+  .custom-file-upload {
+    border: 1px solid #00ff66;
+    display: block;
+    padding: 12px;
+    cursor: pointer;
+    background: #222;
+    color: #fff;
+    border-radius: 8px;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  .custom-file-upload:hover {
+    background: #333;
+    box-shadow: 0 0 5px #00ff66;
+  }
+
+  button {
+    background-color: #00ff66;
+    color: #000;
+    padding: 12px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: 0.3s;
+  }
+
+  button:hover {
+    background-color: #00cc55;
+  }
+
+  .detalles-ticket {
+    background: #222;
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 10px;
+    text-align: left;
+    display: none;
+    font-size: 0.9rem;
+    color: #fff;
+  }
+
+  .historial {
+    background: #111;
+    border-radius: 8px;
+    padding: 15px;
+    max-width: 450px;
+    width: 100%;
+    margin: 0 auto 20px auto;
+    box-sizing: border-box;
+  }
+
+  .historial-item {
+    border-bottom: 1px solid #00ff66;
+    padding: 8px 0;
+    font-size: 0.85rem;
+  }
+
+  /* Sección dedicada para la previsualización al fondo de todo */
+  .seccion-foto-fondo {
+    max-width: 450px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+    text-align: center;
+    padding-bottom: 20px;
+  }
+
+  .seccion-foto-fondo h4 {
+    margin: 5px 0 10px 0;
+    color: #888;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+  }
+
+  .preview-container {
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid #333;
+    background-color: #111;
+    display: none; /* Se activa dinámicamente mediante JS */
+  }
+
+  .preview-container img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+  <div class="wrapper">
+    <h1>🧾 Contador de Tickets Bancarlo</h1>
+    
+    <div class="card">
+      <label for="correo">📧 Correo electrónico de cuenta Bancarlo:</label>
+      <input type="email" id="correo" placeholder="ejemplo@correo.com">
+
+      <div class="contador-contenedor">
+        <div class="pantalla">
+          <span>CASHBACK TOTAL</span>
+          <div id="pantallaCashback">$0.00</div>
+        </div>
+        <div class="pantalla">
+          <span>PUNTOS BANCARLO</span>
+          <div id="pantallaPuntos">0 pts</div>
+        </div>
+      </div>
+
+      <label for="foto-ticket" class="custom-file-upload">
+        📸 Escanear ticket o recibo
+      </label>
+      <input type="file" id="foto-ticket" accept="image/*" onchange="procesarTicketOfertas(event)">
+
+      <div class="detalles-ticket" id="detallesTicket"></div>
+
+      <button id="btnSumar" onclick="depositarFondosOPuntos()" style="display: none; margin-top: 15px;">➕ Validar y Subir a Firebase</button>
+    </div>
+
+    <div class="historial">
+      <h3 style="margin-top:0; color:#00ff66;">📜 Historial de Beneficios Obtenidos</h3>
+      <div id="listaTickets"></div>
+    </div>
+
+    <div class="seccion-foto-fondo">
+      <div class="preview-container" id="previewContainer">
+        <h4>🖼️ Vista previa del ticket procesado</h4>
+        <img id="imgPreview" src="" alt="Ticket">
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Inicialización de Firebase
+  const firebaseConfig = {
+      apiKey: "AIzaSyDNnq2YzWJLi_YfPNqgRY4oCMKOJQjrOGw",
+      databaseURL: "https://bancarlo-23297-default-rtdb.firebaseio.com",
+      projectId: "bancarlo-23297",
+  };
+  
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
+  let acumuladoCashback = parseFloat(localStorage.getItem("t_cashback")) || 0.00;
+  let acumuladoPuntos = parseInt(localStorage.getItem("t_puntos")) || 0;
+  let historialTransacciones = JSON.parse(localStorage.getItem("h_transacciones")) || [];
+  let correoGuardado = localStorage.getItem("correo_ticket") || "";
+
+  let transaccionActual = null;
+
+  window.onload = () => {
+    if (correoGuardado) document.getElementById("correo").value = correoGuardado;
+    actualizarMarcadores();
+    actualizarHistorialVisual();
+  };
+
+  function cleanEmailKey(email) {
+    return email.toLowerCase().replace(/\./g, '_');
+  }
+
+  function actualizarMarcadores() {
+    document.getElementById("pantallaCashback").innerText = `$${acumuladoCashback.toFixed(2)}`;
+    document.getElementById("pantallaPuntos").innerText = `${acumuladoPuntos} pts`;
+  }
+
+  const comerciosOfertas = [
+    { nombre: "Salchichonería San Juan", tipo: "cashback", valor: 0.05, min: 150 },
+    { nombre: "Farmacia Guadalajara", tipo: "cashback", valor: 0.10, min: 0 },
+    { nombre: "Gasolineras", tipo: "cashback", valor: 0.02, min: 0 },
+    { nombre: "Asturiano", tipo: "cashback", valor: 0.05, min: 0 },
+    { nombre: "The Italian Coffee", tipo: "puntos", valor: 60, min: 0 },
+    { nombre: "Que Bara", tipo: "puntos", valor: 25, min: 200 },
+    { nombre: "Walmart", tipo: "puntos", valor: 50, min: 3000 }
+  ];
+
+  function procesarTicketOfertas(event) {
+    const input = event.target;
+    if (!input.files || !input.files[0]) return;
+
+    const file = input.files[0];
+    // Convertimos el nombre del archivo a minúsculas para una comparación flexible
+    const nombreArchivo = file.name.toLowerCase();
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      document.getElementById("imgPreview").src = e.target.result;
+      document.getElementById("previewContainer").style.display = "block";
+
+      // --- CAMBIO CLAVE: Búsqueda basada en el nombre del archivo ---
+      let comercio = comerciosOfertas.find(c => {
+        // Normalizamos los nombres quitando acentos básicos para mejorar la detección
+        const nombreComercioNormalizado = c.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const archivoNormalizado = nombreArchivo.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
+        // Verifica si el nombre del comercio está incluido en el nombre del archivo
+        return archivoNormalizado.includes(nombreComercioNormalizado) || 
+               // Caso especial para variantes más cortas (ej. "italian coffee" o "san juan")
+               (nombreComercioNormalizado.includes("italian") && archivoNormalizado.includes("italian")) ||
+               (nombreComercioNormalizado.includes("san juan") && archivoNormalizado.includes("san juan"));
+      });
+
+      // Si no se encuentra ninguna coincidencia, asignamos una por defecto y avisamos al usuario
+      if (!comercio) {
+        alert("⚠️ No se identificó un comercio asociado en el nombre del archivo. Se procesará como ticket genérico (Asturiano).");
+        comercio = comerciosOfertas.find(c => c.nombre === "Asturiano");
+      }
+      // -------------------------------------------------------------
+      
+      let montoCompra = parseFloat((Math.random() * (400 - 10) + 10).toFixed(2));
+      if (comercio.nombre === "Walmart") montoCompra = parseFloat((Math.random() * (4000 - 2500) + 2500).toFixed(2));
+      if (comercio.nombre === "Que Bara" && Math.random() > 0.5) montoCompra = parseFloat((Math.random() * (350 - 180) + 180).toFixed(2));
+      if (comercio.nombre === "Salchichonería San Juan") montoCompra = parseFloat((Math.random() * (300 - 140) + 140).toFixed(2)); // Asegura cercanía al mínimo
+
+      let cashbackGanado = 0;
+      let puntosGanados = 0;
+      let mensajeRegla = "";
+
+      if (comercio.tipo === "cashback") {
+        if (montoCompra >= comercio.min) {
+          cashbackGanado = montoCompra * comercio.valor;
+          mensajeRegla = `Aplica oferta del ${(comercio.valor * 100)}% de cashback.`;
+        } else {
+          mensajeRegla = `No alcanzó el consumo mínimo de $${comercio.min} para cashback.`;
+        }
+      } else if (comercio.tipo === "puntos") {
+        if (montoCompra >= comercio.min) {
+          puntosGanados = comercio.valor;
+          mensajeRegla = `Aplica bonificación fija de +${comercio.valor} puntos.`;
+        } else {
+          mensajeRegla = `No alcanzó el mínimo de $${comercio.min} para puntos.`;
+        }
+      }
+
+      transaccionActual = {
+        comercio: comercio.nombre,
+        monto: montoCompra,
+        cashback: cashbackGanado,
+        puntos: puntosGanados
+      };
+
+      const panelDetalles = document.getElementById("detallesTicket");
+      panelDetalles.style.display = "block";
+      panelDetalles.innerHTML = `
+        <strong>🏪 Establecimiento Detectado:</strong> ${comercio.nombre}<br>
+        <strong>📄 Archivo:</strong> ${file.name}<br>
+        <strong>💵 Total del Ticket:</strong> $${montoCompra.toFixed(2)}<br>
+        <strong>📢 Estado:</strong> ${mensajeRegla}<br>
+        <hr style="border:1px solid #333;">
+        <span style="color:#00ff66;">Ganancia: +$${cashbackGanado.toFixed(2)} | +${puntosGanados} Puntos</span>
+      `;
+
+      document.getElementById("btnSumar").style.display = "block";
+
+      // Deslizar automáticamente al fondo suavemente para ver la foto y los controles
+      setTimeout(() => {
+        window.scrollTo({
+          top: document.body.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function depositarFondosOPuntos() {
+    const correo = document.getElementById("correo").value.trim();
+    if (!correo) {
+      alert("Introduce tu correo para guardar los datos en tu cuenta Bancarlo.");
+      return;
+    }
+    if (!transaccionActual) return;
+
+    localStorage.setItem("correo_ticket", correo);
+    const userKey = cleanEmailKey(correo);
+
+    database.ref('users/' + userKey).once('value').then((snapshot) => {
+      const data = snapshot.val() || {};
+      let saldoDebito = data.debito !== undefined ? parseFloat(data.debito) : 0.00;
+      let saldoPuntos = data.puntos !== undefined ? parseInt(data.puntos) : 0;
+
+      let nuevoDebito = saldoDebito + transaccionActual.cashback;
+      let nuevosPuntos = saldoPuntos + transaccionActual.puntos;
+
+      database.ref('users/' + userKey + '/debito').set(parseFloat(nuevoDebito.toFixed(6)));
+      database.ref('users/' + userKey + '/puntos').set(nuevosPuntos)
+      .then(() => {
+        acumuladoCashback += transaccionActual.cashback;
+        acumuladoPuntos += transaccionActual.puntos;
+        localStorage.setItem("t_cashback", acumuladoCashback);
+        localStorage.setItem("t_puntos", acumuladoPuntos);
+
+        const fechaStr = new Date().toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' });
+        historialTransacciones.unshift({
+          hora: fechaStr,
+          comercio: transaccionActual.comercio,
+          cashback: transaccionActual.cashback.toFixed(2),
+          puntos: transaccionActual.puntos
+        });
+        localStorage.setItem("h_transacciones", JSON.stringify(historialTransacciones));
+
+        actualizarMarcadores();
+        actualizarHistorialVisual();
+        document.getElementById("btnSumar").style.display = "none";
+        document.getElementById("previewContainer").style.display = "none";
+        document.getElementById("detallesTicket").style.display = "none";
+        document.getElementById("foto-ticket").value = "";
+        transaccionActual = null;
+
+        alert("✅ ¡Éxito! Cashback y Puntos transferidos correctamente a Firebase.");
+      })
+      .catch(() => alert("❌ Error en la transferencia de red con Firebase."));
+    });
+  }
+
+  function actualizarHistorialVisual() {
+    const contenedor = document.getElementById("listaTickets");
+    contenedor.innerHTML = "";
+
+    if (historialTransacciones.length === 0) {
+      contenedor.innerHTML = '<div class="historial-item" style="color:#666;border:none;">Ningún beneficio guardado aún.</div>';
+      return;
+    }
+
+    historialTransacciones.forEach((item) => {
+      contenedor.innerHTML += `
+        <div class="historial-item">
+          <strong>${item.comercio}</strong> (${item.hora}) — Regresó: <span style="color:#fff;">+$${item.cashback}</span> y <span style="color:#00ff99;">+${item.puntos} pts</span>
+        </div>
+      `;
+    });
+  }
+</script>
+
+</body>
+</html>
