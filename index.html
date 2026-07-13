@@ -272,7 +272,6 @@
     });
   }
 
-  // Lista de comercios con G500 ajustado al 0.5% de cashback
   const comerciosOfertas = [
     { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "p01015", "servicios energeticos"], tipo: "cashback", valor: 0.005, min: 0 },
     { nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias"], tipo: "cashback", valor: 0.10, min: 0 },
@@ -283,7 +282,6 @@
     { nombre: "Salchichonería San Juan", palabrasClave: ["salchichoneria san juan", "san juan embutidos"], tipo: "cashback", valor: 0.025, min: 150 }
   ];
 
-  // Preprocesamiento avanzado de Canvas (Filtro Binarizado)
   function preprocesarImagenParaOCR(imageElement) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -341,13 +339,8 @@
         labelCarga.innerText = "⏳ Extrayendo caracteres con Tesseract OCR...";
 
         try {
-          const worker = await Tesseract.createWorker('spa');
-          await worker.setParameters({
-            tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-          });
-
-          const result = await worker.recognize(imagenProcesadaURL);
-          await worker.terminate();
+          // Solución al error: Usamos directamente Tesseract.recognize sin crear workers manuales que rompan hilos
+          const result = await Tesseract.recognize(imagenProcesadaURL, 'spa');
 
           const textoLimpio = result.data.text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
           const nombreArchivo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -387,7 +380,6 @@
             nombreEstablecimiento.toLowerCase().includes(c.nombre.toLowerCase())
           );
 
-          // Si no es un comercio registrado, se vuelve Ticket General con 1% de cashback fijo
           if (!comercioFinal) {
             comercioFinal = { nombre: nombreEstablecimiento, tipo: "cashback", valor: 0.01, min: 0 };
           }
@@ -431,8 +423,8 @@
           document.getElementById("btnSumar").style.display = "block";
 
         } catch (err) {
-          console.error(err);
-          alert("❌ Error en el procesamiento OCR.");
+          console.error("Error detallado del motor OCR:", err);
+          alert("❌ Error en el procesamiento OCR. Revisa la consola del navegador.");
         } finally {
           labelCarga.innerText = "📸 Escanear ticket o recibo";
         }
