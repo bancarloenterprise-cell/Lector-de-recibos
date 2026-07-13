@@ -260,7 +260,6 @@
 
   function conectarUsuarioFirebase() {
     const correo = document.getElementById("correo").value.trim();
-    
     if (!correo || !correo.includes("@")) {
       acumuladoCashback = 0.00;
       acumuladoPuntos = 0;
@@ -271,10 +270,8 @@
     }
 
     const userKey = cleanEmailKey(correo);
-
     database.ref('users/' + userKey).once('value').then((snapshot) => {
       const data = snapshot.val() || {};
-      // La pantalla visual lee exclusivamente 'cashbackAcumulado'
       acumuladoCashback = data.cashbackAcumulado !== undefined ? parseFloat(data.cashbackAcumulado) : 0.00;
       acumuladoPuntos = data.puntos !== undefined ? parseInt(data.puntos) : 0;
       actualizarMarcadores();
@@ -284,15 +281,23 @@
     });
   }
 
-  // Lista de ofertas - G500 al 0.5% (0.005)
+  // Helper para generar una fluctuación diaria basada en la fecha actual (Varía +/- 15% cada día de forma automática)
+  function obtenerFactorDia(idSemilla) {
+    const diaDelMes = new Date().getDate();
+    const x = Math.sin(diaDelMes + idSemilla) * 10000;
+    const pseudoRandom = x - Math.floor(x); // Valor entre 0 y 1
+    return 0.85 + (pseudoRandom * 0.30); 
+  }
+
+  // Lista de comercios base actualizados según tus especificaciones
   const comerciosOfertas = [
-    { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes"], tipo: "cashback", valor: 0.005, min: 0 },
-    { nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias guadalajara"], tipo: "cashback", valor: 0.10, min: 0 },
-    { nombre: "Asturiano", palabrasClave: ["asturiano", "tienda asturiano"], tipo: "cashback", valor: 0.05, min: 0 },
-    { nombre: "The Italian Coffee", palabrasClave: ["italian", "coffee", "the italian"], tipo: "puntos", valor: 60, min: 0 },
-    { nombre: "Que Bara", palabrasClave: ["que bara", "bara"], tipo: "puntos", valor: 25, min: 200 },
-    { nombre: "Walmart", palabrasClave: ["walmart", "supercenter"], tipo: "puntos", valor: 50, min: 3000 },
-    { nombre: "Salchichonería San Juan", palabrasClave: ["salchichoneria san juan", "san juan embutidos"], tipo: "cashback", valor: 0.025, min: 150 }
+    { id: 1, nombre: "Gasolineras", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "gasolina", "reman", "pemex"], tipo: "cashback", valorBase: 0.03 },
+    { id: 2, nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias guadalajara"], tipo: "cashback", valorBase: 0.025 }, // Base 2.5%
+    { id: 3, nombre: "Asturiano", palabrasClave: ["asturiano", "tienda asturiano"], tipo: "cashback", valorBase: 0.04 },
+    { id: 4, nombre: "Salchichonería San Juan", palabrasClave: ["salchichoneria san juan", "san juan embutidos"], tipo: "cashback", valorBase: 0.025 }, // Base 2.5%
+    { id: 5, nombre: "The Italian Coffee", palabrasClave: ["italian", "coffee", "the italian"], tipo: "puntos", valorBase: 60 },
+    { id: 6, nombre: "Que Bara", palabrasClave: ["que bara", "bara"], tipo: "puntos", valorBase: 30 },
+    { id: 7, nombre: "Walmart", palabrasClave: ["walmart", "supercenter"], tipo: "puntos", valorBase: 55 }
   ];
 
   async function procesarTicketReal(event) {
@@ -329,7 +334,7 @@
           return c.palabrasClave.some(palabra => textoAnalisis.includes(palabra));
         });
 
-        let nombreEstablecimiento = comercioDetectado ? comercioDetectado.nombre : "Ticket de Consumo General";
+        let nombreEstablecimiento = comercioDetectado ? comercioDetectado.nombre : "Consumo General";
 
         let montoCompra = 0;
         const regexNumeros = /\b([0-9]{1,5}\.[0-9]{2})\b/g;
@@ -341,7 +346,6 @@
             todosLosMontos.push(parseFloat(coincidencias[1]));
           }
         }
-
         if (todosLosMontos.length > 0) {
           montoCompra = Math.max(...todosLosMontos);
         }
@@ -357,27 +361,38 @@
         );
 
         if (!comercioFinal) {
-          comercioFinal = { nombre: nombreEstablecimiento, tipo: "cashback", valor: 0.03, min: 0 };
+          comercioFinal = { id: 99, nombre: nombreEstablecimiento, tipo: "cashback", valorBase: 0.02 };
         }
 
+        // --- CÁLCULO DINÁMICO E INVERSO ---
+        let factorDia = obtenerFactorDia(comercioFinal.id);
         let cashbackGanado = 0;
         let puntosGanados = 0;
         let mensajeRegla = "";
 
         if (comercioFinal.tipo === "cashback") {
-          if (montoCompra >= comercioFinal.min) {
-            cashbackGanado = montoCompra * comercioFinal.valor;
-            mensajeRegla = `Aplica oferta del ${(comercioFinal.valor * 100).toFixed(1)}% de cashback asignado.`;
-          } else {
-            mensajeRegla = `No alcanzó el consumo mínimo de $${comercioFinal.min} para esta promoción.`;
-          }
+          // El porcentaje base del día cambia diario
+          let tasaDelDia = comercioFinal.valorBase * factorDia;
+          
+          // REGLA INVERSA: A mayor costo del ticket, la tasa se reduce paulatinamente usando una curva atenuada
+          // Dividimos entre (1 + montoCompra / 2500) para penalizar sutilmente los montos altos
+          let tasaFinalEfectiva = tasaDelDia / (1 + (montoCompra / 2500));
+          
+          // REGLA DE LÍMITES STRICT: Capped a un máximo de 5% y un suelo mínimo de 0.2%
+          if (tasaFinalEfectiva > 0.05) tasaFinalEfectiva = 0.05;
+          if (tasaFinalEfectiva < 0.002) tasaFinalEfectiva = 0.002;
+
+          cashbackGanado = montoCompra * tasaFinalEfectiva;
+          mensajeRegla = `Oferta del día ajustada por costo del ticket: ${(tasaFinalEfectiva * 100).toFixed(2)}% de cashback asignado.`;
+          
         } else if (comercioFinal.tipo === "puntos") {
-          if (montoCompra >= comercioFinal.min) {
-            puntosGanados = comercioFinal.valor;
-            mensajeRegla = `Aplica bonificación fija de +${comercioFinal.valor} puntos Bancarlo.`;
-          } else {
-            mensajeRegla = `No alcanzó el monto mínimo de $${comercioFinal.min} para asignación de puntos.`;
-          }
+          let puntosBaseDia = comercioFinal.valorBase * factorDia;
+          
+          // REGLA INVERSA para Puntos: Entre más caro el ticket, menor es la recompensa de puntos asignada
+          let puntosFinales = puntosBaseDia / (1 + (montoCompra / 1500));
+          puntosGanados = Math.max(1, Math.round(puntosFinales));
+          
+          mensajeRegla = `Bonificación del día calibrada por costo de compra: +${puntosGanados} puntos asignados.`;
         }
 
         transaccionActual = {
@@ -390,10 +405,10 @@
         panelDetalles.innerHTML = `
           <strong>🏪 Establecimiento Reconocido:</strong> ${comercioFinal.nombre}<br>
           <strong>📄 Archivo Analizado:</strong> ${file.name}<br>
-          <strong>💵 Monto Total Escaneado (Confirmado):</strong> $${montoCompra.toFixed(2)}<br>
-          <strong>📢 Estado de Validación:</strong> ${mensajeRegla}<br>
+          <strong>💵 Monto Total Escaneado:</strong> $${montoCompra.toFixed(2)}<br>
+          <strong>📢 Regla de Variación Aplicada:</strong> ${mensajeRegla}<br>
           <hr style="border:1px solid #333;">
-          <span style="color:#00ff66; font-weight:bold;">Beneficio Detectado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
+          <span style="color:#00ff66; font-weight:bold;">Beneficio Calculado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
         `;
 
         document.getElementById("btnSumar").style.display = "block";
@@ -410,33 +425,25 @@
 
   function depositarFondosOPuntos() {
     const correo = document.getElementById("correo").value.trim();
-    if (!correo) {
-      alert("Introduce tu correo para guardar los datos en tu cuenta Bancarlo.");
-      return;
-    }
-    if (!transaccionActual) return;
+    if (!correo || !transaccionActual) return;
 
     const userKey = cleanEmailKey(correo);
 
     database.ref('users/' + userKey).once('value').then((snapshot) => {
       const data = snapshot.val() || {};
       
-      // Obtenemos de Firebase tanto el saldo de débito de la tarjeta como el cashback acumulado por separado
       let saldoDebito = data.debito !== undefined ? parseFloat(data.debito) : 0.00;
       let saldoCashbackTotal = data.cashbackAcumulado !== undefined ? parseFloat(data.cashbackAcumulado) : 0.00;
       let saldoPuntos = data.puntos !== undefined ? parseInt(data.puntos) : 0;
 
-      // Operaciones paralelas: Se suma al saldo real de débito Y TAMBIÉN al récord de cashback acumulado
       let nuevoDebito = saldoDebito + transaccionActual.cashback;
       let nuevoCashbackTotal = saldoCashbackTotal + transaccionActual.cashback;
       let nuevosPuntos = saldoPuntos + transaccionActual.puntos;
 
-      // Guardamos todas las actualizaciones en Firebase de forma limpia
       database.ref('users/' + userKey + '/debito').set(parseFloat(nuevoDebito.toFixed(6)));
       database.ref('users/' + userKey + '/cashbackAcumulado').set(parseFloat(nuevoCashbackTotal.toFixed(6)));
       database.ref('users/' + userKey + '/puntos').set(nuevosPuntos)
       .then(() => {
-        // En la interfaz visual mostramos el historial de cashback acumulado en la app
         acumuladoCashback = nuevoCashbackTotal;
         acumuladoPuntos = nuevosPuntos;
 
@@ -457,9 +464,9 @@
         document.getElementById("foto-ticket").value = "";
         transaccionActual = null;
 
-        alert("✅ ¡Éxito! El dinero fue enviado a tu tarjeta de débito y el cashback acumulado ha sido registrado.");
+        alert("✅ ¡Modificación de saldos exitosa con reglas dinámicas!");
       })
-      .catch(() => alert("❌ Error en la transferencia de red con Firebase."));
+      .catch(() => alert("❌ Error de red al sincronizar con Firebase."));
     });
   }
 
@@ -475,7 +482,7 @@
     historialTransacciones.forEach((item) => {
       contenedor.innerHTML += `
         <div class="historial-item">
-          <strong>${item.comercio}</strong> (${item.hora}) — Regresó: <span style="color:#fff;">+$${item.cashback}</span> y <span style="color:#00ff99;">+${item.puntos} pts</span>
+          <strong>${item.comercio}</strong> (${item.hora}) — Recibiste: <span style="color:#fff;">+$${item.cashback}</span> y <span style="color:#00ff99;">+${item.puntos} pts</span>
         </div>
       `;
     });
