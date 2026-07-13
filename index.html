@@ -274,7 +274,8 @@
 
     database.ref('users/' + userKey).once('value').then((snapshot) => {
       const data = snapshot.val() || {};
-      acumuladoCashback = data.debito !== undefined ? parseFloat(data.debito) : 0.00;
+      // Cambiado de 'debito' a 'cashbackAcumulado' para independizar el saldo de la tarjeta
+      acumuladoCashback = data.cashbackAcumulado !== undefined ? parseFloat(data.cashbackAcumulado) : 0.00;
       acumuladoPuntos = data.puntos !== undefined ? parseInt(data.puntos) : 0;
       actualizarMarcadores();
       actualizarHistorialVisual();
@@ -283,7 +284,7 @@
     });
   }
 
-  // Lista de comercios - G500 ajustado al 0.5% (0.005)
+  // Lista de comercios - G500 configurado exactamente al 0.5% (0.005)
   const comerciosOfertas = [
     { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes"], tipo: "cashback", valor: 0.005, min: 0 },
     { nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias guadalajara"], tipo: "cashback", valor: 0.10, min: 0 },
@@ -324,7 +325,6 @@
         const nombreArchivo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const textoAnalisis = textoLimpio + " " + nombreArchivo;
 
-        // Detección inicial de comercio
         let comercioDetectado = comerciosOfertas.find(c => {
           return c.palabrasClave.some(palabra => textoAnalisis.includes(palabra));
         });
@@ -346,14 +346,13 @@
           montoCompra = Math.max(...todosLosMontos);
         }
 
-        // Interrupción con prompts para validación manual
         let confirmNombre = prompt("Confirma o escribe el nombre del Establecimiento del ticket:", nombreEstablecimiento);
         if (confirmNombre) nombreEstablecimiento = confirmNombre;
 
         let confirmMonto = prompt("Confirma o introduce el Monto Total ($) exacto del ticket:", montoCompra > 0 ? montoCompra : "0.00");
         if (confirmMonto) montoCompra = parseFloat(confirmMonto) || 0;
 
-        // Re-cálculo estricto basado en la entrada de los prompts
+        // Búsqueda del comercio final y cálculo dinámico preciso
         let comercioFinal = comerciosOfertas.find(c => 
           nombreEstablecimiento.toLowerCase().includes(c.nombre.toLowerCase())
         );
@@ -369,7 +368,7 @@
         if (comercioFinal.tipo === "cashback") {
           if (montoCompra >= comercioFinal.min) {
             cashbackGanado = montoCompra * comercioFinal.valor;
-            mensajeRegla = `Aplica oferta del ${(comercioFinal.valor * 100).toFixed(2)}% de cashback asignado.`;
+            mensajeRegla = `Aplica oferta del ${(comercioFinal.valor * 100).toFixed(1)}% de cashback asignado.`;
           } else {
             mensajeRegla = `No alcanzó el consumo mínimo de $${comercioFinal.min} para esta promoción.`;
           }
@@ -390,12 +389,12 @@
         };
 
         panelDetalles.innerHTML = `
-          <strong>🏪 Establecimiento Confirmado:</strong> ${comercioFinal.nombre}<br>
+          <strong>🏪 Establecimiento Reconocido:</strong> ${comercioFinal.nombre}<br>
           <strong>📄 Archivo Analizado:</strong> ${file.name}<br>
-          <strong>💵 Monto Validado:</strong> $${montoCompra.toFixed(2)}<br>
+          <strong>💵 Monto Total Escaneado (Confirmado):</strong> $${montoCompra.toFixed(2)}<br>
           <strong>📢 Estado de Validación:</strong> ${mensajeRegla}<br>
           <hr style="border:1px solid #333;">
-          <span style="color:#00ff66; font-weight:bold;">Beneficio Calculado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
+          <span style="color:#00ff66; font-weight:bold;">Beneficio Detectado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
         `;
 
         document.getElementById("btnSumar").style.display = "block";
@@ -422,16 +421,18 @@
 
     database.ref('users/' + userKey).once('value').then((snapshot) => {
       const data = snapshot.val() || {};
-      let saldoDebito = data.debito !== undefined ? parseFloat(data.debito) : 0.00;
+      // Cambiado para acumular sobre la clave correcta 'cashbackAcumulado'
+      let saldoCashback = data.cashbackAcumulado !== undefined ? parseFloat(data.cashbackAcumulado) : 0.00;
       let saldoPuntos = data.puntos !== undefined ? parseInt(data.puntos) : 0;
 
-      let nuevoDebito = saldoDebito + transaccionActual.cashback;
+      let nuevoCashback = saldoCashback + transaccionActual.cashback;
       let nuevosPuntos = saldoPuntos + transaccionActual.puntos;
 
-      database.ref('users/' + userKey + '/debito').set(parseFloat(nuevoDebito.toFixed(6)));
+      // Se guarda directamente en su propio nodo para no alterar el débito
+      database.ref('users/' + userKey + '/cashbackAcumulado').set(parseFloat(nuevoCashback.toFixed(6)));
       database.ref('users/' + userKey + '/puntos').set(nuevosPuntos)
       .then(() => {
-        acumuladoCashback = nuevoDebito;
+        acumuladoCashback = nuevoCashback;
         acumuladoPuntos = nuevosPuntos;
 
         const fechaStr = new Date().toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' });
@@ -451,7 +452,7 @@
         document.getElementById("foto-ticket").value = "";
         transaccionActual = null;
 
-        alert("✅ ¡Éxito! El monto e importe exacto han sido validados y subidos a Firebase.");
+        alert("✅ ¡Éxito! Tu cashback acumulado e importe han sido guardados en Firebase.");
       })
       .catch(() => alert("❌ Error en la transferencia de red con Firebase."));
     });
