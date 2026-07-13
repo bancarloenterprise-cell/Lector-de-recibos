@@ -283,9 +283,9 @@
     });
   }
 
-  // Lista de comercios optimizada y con los valores de tus capturas de pantalla reales
+  // Lista de comercios - G500 ajustado al 0.5% (0.005)
   const comerciosOfertas = [
-    { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes"], tipo: "cashback", valor: 0.02, min: 0 },
+    { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes"], tipo: "cashback", valor: 0.005, min: 0 },
     { nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias guadalajara"], tipo: "cashback", valor: 0.10, min: 0 },
     { nombre: "Asturiano", palabrasClave: ["asturiano", "tienda asturiano"], tipo: "cashback", valor: 0.05, min: 0 },
     { nombre: "The Italian Coffee", palabrasClave: ["italian", "coffee", "the italian"], tipo: "puntos", valor: 60, min: 0 },
@@ -324,7 +324,7 @@
         const nombreArchivo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const textoAnalisis = textoLimpio + " " + nombreArchivo;
 
-        // Detección precisa de comercio
+        // Detección inicial de comercio
         let comercioDetectado = comerciosOfertas.find(c => {
           return c.palabrasClave.some(palabra => textoAnalisis.includes(palabra));
         });
@@ -332,7 +332,6 @@
         let nombreEstablecimiento = comercioDetectado ? comercioDetectado.nombre : "Ticket de Consumo General";
 
         let montoCompra = 0;
-        // Expresión regular mejorada para leer montos de hasta 5 cifras más centavos (Ej: 1900.65)
         const regexNumeros = /\b([0-9]{1,5}\.[0-9]{2})\b/g;
         let coincidencias;
         let todosLosMontos = [];
@@ -343,17 +342,18 @@
           }
         }
 
-        // Selección estricta del valor numérico más alto
         if (todosLosMontos.length > 0) {
           montoCompra = Math.max(...todosLosMontos);
         }
 
+        // Interrupción con prompts para validación manual
         let confirmNombre = prompt("Confirma o escribe el nombre del Establecimiento del ticket:", nombreEstablecimiento);
         if (confirmNombre) nombreEstablecimiento = confirmNombre;
 
         let confirmMonto = prompt("Confirma o introduce el Monto Total ($) exacto del ticket:", montoCompra > 0 ? montoCompra : "0.00");
         if (confirmMonto) montoCompra = parseFloat(confirmMonto) || 0;
 
+        // Re-cálculo estricto basado en la entrada de los prompts
         let comercioFinal = comerciosOfertas.find(c => 
           nombreEstablecimiento.toLowerCase().includes(c.nombre.toLowerCase())
         );
@@ -369,7 +369,7 @@
         if (comercioFinal.tipo === "cashback") {
           if (montoCompra >= comercioFinal.min) {
             cashbackGanado = montoCompra * comercioFinal.valor;
-            mensajeRegla = `Aplica oferta del ${(comercioFinal.valor * 100).toFixed(1)}% de cashback asignado.`;
+            mensajeRegla = `Aplica oferta del ${(comercioFinal.valor * 100).toFixed(2)}% de cashback asignado.`;
           } else {
             mensajeRegla = `No alcanzó el consumo mínimo de $${comercioFinal.min} para esta promoción.`;
           }
@@ -390,12 +390,12 @@
         };
 
         panelDetalles.innerHTML = `
-          <strong>🏪 Establecimiento Reconocido:</strong> ${comercioFinal.nombre}<br>
+          <strong>🏪 Establecimiento Confirmado:</strong> ${comercioFinal.nombre}<br>
           <strong>📄 Archivo Analizado:</strong> ${file.name}<br>
-          <strong>💵 Monto Total Escaneado (Mayor detectado):</strong> $${montoCompra.toFixed(2)}<br>
+          <strong>💵 Monto Validado:</strong> $${montoCompra.toFixed(2)}<br>
           <strong>📢 Estado de Validación:</strong> ${mensajeRegla}<br>
           <hr style="border:1px solid #333;">
-          <span style="color:#00ff66; font-weight:bold;">Beneficio Detectado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
+          <span style="color:#00ff66; font-weight:bold;">Beneficio Calculado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
         `;
 
         document.getElementById("btnSumar").style.display = "block";
