@@ -272,9 +272,9 @@
     });
   }
 
-  // Lista de comercios con G500 fijado estrictamente al 1% siempre
+  // Lista de comercios con G500 ajustado al 0.5% de cashback
   const comerciosOfertas = [
-    { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "p01015", "servicios energeticos"], tipo: "cashback", valor: 0.01, min: 0 },
+    { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "p01015", "servicios energeticos"], tipo: "cashback", valor: 0.005, min: 0 },
     { nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias"], tipo: "cashback", valor: 0.10, min: 0 },
     { nombre: "Asturiano", palabrasClave: ["asturiano"], tipo: "cashback", valor: 0.05, min: 0 },
     { nombre: "The Italian Coffee", palabrasClave: ["italian", "coffee"], tipo: "puntos", valor: 60, min: 0 },
@@ -387,8 +387,9 @@
             nombreEstablecimiento.toLowerCase().includes(c.nombre.toLowerCase())
           );
 
+          // Si no es un comercio registrado, se vuelve Ticket General con 1% de cashback fijo
           if (!comercioFinal) {
-            comercioFinal = { nombre: nombreEstablecimiento, tipo: "cashback", valor: 0.03, min: 0 };
+            comercioFinal = { nombre: nombreEstablecimiento, tipo: "cashback", valor: 0.01, min: 0 };
           }
 
           let cashbackGanado = 0;
