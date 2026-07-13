@@ -274,7 +274,7 @@
 
     database.ref('users/' + userKey).once('value').then((snapshot) => {
       const data = snapshot.val() || {};
-      // Cambiado de 'debito' a 'cashbackAcumulado' para independizar el saldo de la tarjeta
+      // La pantalla visual lee exclusivamente 'cashbackAcumulado'
       acumuladoCashback = data.cashbackAcumulado !== undefined ? parseFloat(data.cashbackAcumulado) : 0.00;
       acumuladoPuntos = data.puntos !== undefined ? parseInt(data.puntos) : 0;
       actualizarMarcadores();
@@ -284,7 +284,7 @@
     });
   }
 
-  // Lista de comercios - G500 configurado exactamente al 0.5% (0.005)
+  // Lista de ofertas - G500 al 0.5% (0.005)
   const comerciosOfertas = [
     { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes"], tipo: "cashback", valor: 0.005, min: 0 },
     { nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias guadalajara"], tipo: "cashback", valor: 0.10, min: 0 },
@@ -352,7 +352,6 @@
         let confirmMonto = prompt("Confirma o introduce el Monto Total ($) exacto del ticket:", montoCompra > 0 ? montoCompra : "0.00");
         if (confirmMonto) montoCompra = parseFloat(confirmMonto) || 0;
 
-        // Búsqueda del comercio final y cálculo dinámico preciso
         let comercioFinal = comerciosOfertas.find(c => 
           nombreEstablecimiento.toLowerCase().includes(c.nombre.toLowerCase())
         );
@@ -421,18 +420,24 @@
 
     database.ref('users/' + userKey).once('value').then((snapshot) => {
       const data = snapshot.val() || {};
-      // Cambiado para acumular sobre la clave correcta 'cashbackAcumulado'
-      let saldoCashback = data.cashbackAcumulado !== undefined ? parseFloat(data.cashbackAcumulado) : 0.00;
+      
+      // Obtenemos de Firebase tanto el saldo de débito de la tarjeta como el cashback acumulado por separado
+      let saldoDebito = data.debito !== undefined ? parseFloat(data.debito) : 0.00;
+      let saldoCashbackTotal = data.cashbackAcumulado !== undefined ? parseFloat(data.cashbackAcumulado) : 0.00;
       let saldoPuntos = data.puntos !== undefined ? parseInt(data.puntos) : 0;
 
-      let nuevoCashback = saldoCashback + transaccionActual.cashback;
+      // Operaciones paralelas: Se suma al saldo real de débito Y TAMBIÉN al récord de cashback acumulado
+      let nuevoDebito = saldoDebito + transaccionActual.cashback;
+      let nuevoCashbackTotal = saldoCashbackTotal + transaccionActual.cashback;
       let nuevosPuntos = saldoPuntos + transaccionActual.puntos;
 
-      // Se guarda directamente en su propio nodo para no alterar el débito
-      database.ref('users/' + userKey + '/cashbackAcumulado').set(parseFloat(nuevoCashback.toFixed(6)));
+      // Guardamos todas las actualizaciones en Firebase de forma limpia
+      database.ref('users/' + userKey + '/debito').set(parseFloat(nuevoDebito.toFixed(6)));
+      database.ref('users/' + userKey + '/cashbackAcumulado').set(parseFloat(nuevoCashbackTotal.toFixed(6)));
       database.ref('users/' + userKey + '/puntos').set(nuevosPuntos)
       .then(() => {
-        acumuladoCashback = nuevoCashback;
+        // En la interfaz visual mostramos el historial de cashback acumulado en la app
+        acumuladoCashback = nuevoCashbackTotal;
         acumuladoPuntos = nuevosPuntos;
 
         const fechaStr = new Date().toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' });
@@ -452,7 +457,7 @@
         document.getElementById("foto-ticket").value = "";
         transaccionActual = null;
 
-        alert("✅ ¡Éxito! Tu cashback acumulado e importe han sido guardados en Firebase.");
+        alert("✅ ¡Éxito! El dinero fue enviado a tu tarjeta de débito y el cashback acumulado ha sido registrado.");
       })
       .catch(() => alert("❌ Error en la transferencia de red con Firebase."));
     });
