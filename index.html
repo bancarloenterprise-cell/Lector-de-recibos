@@ -193,7 +193,7 @@
     
     <div class="card">
       <label for="correo">📧 Correo electrónico de cuenta Bancarlo:</label>
-      <input type="email" id="correo" placeholder="tucorreo@gmail.com">
+      <input type="email" id="correo" placeholder="tucorreo@gmail.com" oninput="conectarUsuarioFirebase()">
 
       <div class="contador-contenedor">
         <div class="pantalla">
@@ -238,13 +238,14 @@
   firebase.initializeApp(firebaseConfig);
   const database = firebase.database();
 
-  let acumuladoCashback = parseFloat(localStorage.getItem("t_cashback")) || 0.00;
-  let acumuladoPuntos = parseInt(localStorage.getItem("t_puntos")) || 0;
-  let historialTransacciones = JSON.parse(localStorage.getItem("h_transacciones")) || [];
-
+  // Iniciamos todo estrictamente en ceros limpios
+  let acumuladoCashback = 0.00;
+  let acumuladoPuntos = 0;
+  let historialTransacciones = [];
   let transaccionActual = null;
 
   window.onload = () => {
+    document.getElementById("correo").value = ""; // Asegura campo vacío
     actualizarMarcadores();
     actualizarHistorialVisual();
   };
@@ -258,6 +259,39 @@
     document.getElementById("pantallaPuntos").innerText = `${acumuladoPuntos} pts`;
   }
 
+  // FUNCIÓN CLAVE: Conecta a Firebase en cuanto se escribe el correo
+  function conectarUsuarioFirebase() {
+    const correo = document.getElementById("correo").value.trim();
+    
+    // Si borran el correo, volvemos a poner todo a cero inmediatamente
+    if (!correo || !correo.includes("@")) {
+      acumuladoCashback = 0.00;
+      acumuladoPuntos = 0;
+      historialTransacciones = [];
+      actualizarMarcadores();
+      actualizarHistorialVisual();
+      return;
+    }
+
+    const userKey = cleanEmailKey(correo);
+
+    database.ref('users/' + userKey).once('value').then((snapshot) => {
+      const data = snapshot.val() || {};
+      
+      // Extraemos los saldos actuales del servidor Firebase
+      acumuladoCashback = data.debito !== undefined ? parseFloat(data.debito) : 0.00;
+      acumuladoPuntos = data.puntos !== undefined ? parseInt(data.puntos) : 0;
+      
+      // Sincronizamos la pantalla con los datos reales
+      actualizarMarcadores();
+      
+      // Opcional: Si manejas el historial en Firebase lo pintaríamos aquí, si no, se muestra en blanco listo para llenarse
+      actualizarHistorialVisual();
+    }).catch((err) => {
+      console.log("Esperando correo completamente válido...");
+    });
+  }
+
   const comerciosOfertas = [
     { nombre: "Salchichonería San Juan", palabrasClave: ["san", "juan", "salchichoneria", "embutidos"], tipo: "cashback", valor: 0.025, min: 150 },
     { nombre: "Farmacia Guadalajara", palabrasClave: ["farmacia", "guadalajara", "superfarma"], tipo: "cashback", valor: 0.10, min: 0 },
@@ -269,6 +303,13 @@
   ];
 
   async function procesarTicketReal(event) {
+    const correo = document.getElementById("correo").value.trim();
+    if (!correo) {
+      alert("⚠️ Primero debes ingresar tu correo electrónico para vincular tus saldos.");
+      event.target.value = "";
+      return;
+    }
+
     const input = event.target;
     if (!input.files || !input.files[0]) return;
 
@@ -396,10 +437,9 @@
       database.ref('users/' + userKey + '/debito').set(parseFloat(nuevoDebito.toFixed(6)));
       database.ref('users/' + userKey + '/puntos').set(nuevosPuntos)
       .then(() => {
-        acumuladoCashback += transaccionActual.cashback;
-        acumuladoPuntos += transaccionActual.puntos;
-        localStorage.setItem("t_cashback", acumuladoCashback);
-        localStorage.setItem("t_puntos", acumuladoPuntos);
+        // Incrementamos de forma reactiva local
+        acumuladoCashback = nuevoDebito;
+        acumuladoPuntos = nuevosPuntos;
 
         const fechaStr = new Date().toLocaleTimeString("es-MX", { hour: '2-digit', minute: '2-digit' });
         historialTransacciones.unshift({
@@ -408,10 +448,11 @@
           cashback: transaccionActual.cashback.toFixed(2),
           puntos: transaccionActual.puntos
         });
-        localStorage.setItem("h_transacciones", JSON.stringify(historialTransacciones));
 
         actualizarMarcadores();
         actualizarHistorialVisual();
+        
+        // Limpiamos pantalla de escaneo
         document.getElementById("btnSumar").style.display = "none";
         document.getElementById("previewContainer").style.display = "none";
         document.getElementById("detallesTicket").style.display = "none";
@@ -429,7 +470,7 @@
     contenedor.innerHTML = "";
 
     if (historialTransacciones.length === 0) {
-      contenedor.innerHTML = '<div class="historial-item" style="color:#666;border:none;">Ningún beneficio guardado aún.</div>';
+      contenedor.innerHTML = '<div class="historial-item" style="color:#666;border:none;">Ningún beneficio guardado en esta sesión.</div>';
       return;
     }
 
