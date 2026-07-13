@@ -281,23 +281,23 @@
     });
   }
 
-  // Helper para generar una fluctuación diaria basada en la fecha actual (Varía +/- 15% cada día de forma automática)
+  // Generador de fluctuación diaria basada en la fecha
   function obtenerFactorDia(idSemilla) {
     const diaDelMes = new Date().getDate();
     const x = Math.sin(diaDelMes + idSemilla) * 10000;
-    const pseudoRandom = x - Math.floor(x); // Valor entre 0 y 1
+    const pseudoRandom = x - Math.floor(x);
     return 0.85 + (pseudoRandom * 0.30); 
   }
 
-  // Lista de comercios base actualizados según tus especificaciones
+  // Lista de comercios base
   const comerciosOfertas = [
-    { id: 1, nombre: "Gasolineras", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "gasolina", "reman", "pemex"], tipo: "cashback", valorBase: 0.03 },
-    { id: 2, nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias guadalajara"], tipo: "cashback", valorBase: 0.025 }, // Base 2.5%
-    { id: 3, nombre: "Asturiano", palabrasClave: ["asturiano", "tienda asturiano"], tipo: "cashback", valorBase: 0.04 },
-    { id: 4, nombre: "Salchichonería San Juan", palabrasClave: ["salchichoneria san juan", "san juan embutidos"], tipo: "cashback", valorBase: 0.025 }, // Base 2.5%
-    { id: 5, nombre: "The Italian Coffee", palabrasClave: ["italian", "coffee", "the italian"], tipo: "puntos", valorBase: 60 },
-    { id: 6, nombre: "Que Bara", palabrasClave: ["que bara", "bara"], tipo: "puntos", valorBase: 30 },
-    { id: 7, nombre: "Walmart", palabrasClave: ["walmart", "supercenter"], tipo: "puntos", valorBase: 55 }
+    { id: 1, nombre: "Gasolineras", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "gasolina", "reman", "pemex"], tipo: "cashback", valorBase: 0.02, fija: true }, // Fija al 2% base
+    { id: 2, nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias guadalajara"], tipo: "cashback", valorBase: 0.025, fija: false },
+    { id: 3, nombre: "Asturiano", palabrasClave: ["asturiano", "tienda asturiano"], tipo: "cashback", valorBase: 0.04, fija: false },
+    { id: 4, nombre: "Salchichonería San Juan", palabrasClave: ["salchichoneria san juan", "san juan embutidos"], tipo: "cashback", valorBase: 0.025, fija: false },
+    { id: 5, nombre: "The Italian Coffee", palabrasClave: ["italian", "coffee", "the italian"], tipo: "puntos", valorBase: 60, fija: false },
+    { id: 6, nombre: "Que Bara", palabrasClave: ["que bara", "bara"], tipo: "puntos", valorBase: 30, fija: false },
+    { id: 7, merge: "Walmart", nombre: "Walmart", palabrasClave: ["walmart", "supercenter"], tipo: "puntos", valorBase: 55, fija: false }
   ];
 
   async function procesarTicketReal(event) {
@@ -361,34 +361,35 @@
         );
 
         if (!comercioFinal) {
-          comercioFinal = { id: 99, nombre: nombreEstablecimiento, tipo: "cashback", valorBase: 0.02 };
+          comercioFinal = { id: 99, nombre: nombreEstablecimiento, tipo: "cashback", valorBase: 0.02, fija: true };
         }
 
-        // --- CÁLCULO DINÁMICO E INVERSO ---
-        let factorDia = obtenerFactorDia(comercioFinal.id);
+        // --- CALCULO CON FILTRO DE EXCEPCIÓN ---
+        let factorDia = comercioFinal.fija ? 1.0 : obtenerFactorDia(comercioFinal.id); 
         let cashbackGanado = 0;
         let puntosGanados = 0;
         let mensajeRegla = "";
 
         if (comercioFinal.tipo === "cashback") {
-          // El porcentaje base del día cambia diario
           let tasaDelDia = comercioFinal.valorBase * factorDia;
           
-          // REGLA INVERSA: A mayor costo del ticket, la tasa se reduce paulatinamente usando una curva atenuada
-          // Dividimos entre (1 + montoCompra / 2500) para penalizar sutilmente los montos altos
+          // Regla Inversa proporcional al monto
           let tasaFinalEfectiva = tasaDelDia / (1 + (montoCompra / 2500));
           
-          // REGLA DE LÍMITES STRICT: Capped a un máximo de 5% y un suelo mínimo de 0.2%
+          // Topes estrictos
           if (tasaFinalEfectiva > 0.05) tasaFinalEfectiva = 0.05;
           if (tasaFinalEfectiva < 0.002) tasaFinalEfectiva = 0.002;
 
           cashbackGanado = montoCompra * tasaFinalEfectiva;
-          mensajeRegla = `Oferta del día ajustada por costo del ticket: ${(tasaFinalEfectiva * 100).toFixed(2)}% de cashback asignado.`;
+          
+          if(comercioFinal.fija) {
+            mensajeRegla = `Promoción fija de Gasolineras balanceada por costo: ${(tasaFinalEfectiva * 100).toFixed(2)}% de cashback.`;
+          } else {
+            mensajeRegla = `Oferta del día ajustada por costo del ticket: ${(tasaFinalEfectiva * 100).toFixed(2)}% de cashback asignado.`;
+          }
           
         } else if (comercioFinal.tipo === "puntos") {
           let puntosBaseDia = comercioFinal.valorBase * factorDia;
-          
-          // REGLA INVERSA para Puntos: Entre más caro el ticket, menor es la recompensa de puntos asignada
           let puntosFinales = puntosBaseDia / (1 + (montoCompra / 1500));
           puntosGanados = Math.max(1, Math.round(puntosFinales));
           
