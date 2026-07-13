@@ -272,9 +272,8 @@
     });
   }
 
-  // Lista de comercios con G500 ajustado al 0.5% de cashback
   const comerciosOfertas = [
-    { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "p01015", "servicios energeticos"], tipo: "cashback", valor: 0.005, min: 0 },
+    { nombre: "G500", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "p01015", "servicios energeticos"], tipo: "cashback", valor: 0.01, min: 0 },
     { nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias"], tipo: "cashback", valor: 0.10, min: 0 },
     { nombre: "Asturiano", palabrasClave: ["asturiano"], tipo: "cashback", valor: 0.05, min: 0 },
     { nombre: "The Italian Coffee", palabrasClave: ["italian", "coffee"], tipo: "puntos", valor: 60, min: 0 },
@@ -283,7 +282,6 @@
     { nombre: "Salchichonería San Juan", palabrasClave: ["salchichoneria san juan", "san juan embutidos"], tipo: "cashback", valor: 0.025, min: 150 }
   ];
 
-  // Preprocesamiento avanzado de Canvas (Filtro Binarizado)
   function preprocesarImagenParaOCR(imageElement) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -298,6 +296,7 @@
       const r = data[i];
       const g = data[i+1];
       const b = data[i+2];
+      
       const gris = 0.2126 * r + 0.7152 * g + 0.0722 * b;
       const v = (gris < 132) ? 0 : 255;
       data[i] = v;     
@@ -342,6 +341,7 @@
 
         try {
           const worker = await Tesseract.createWorker('spa');
+          
           await worker.setParameters({
             tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
           });
@@ -360,7 +360,6 @@
           let nombreEstablecimiento = comercioDetectado ? comercioDetectado.nombre : "Ticket de Consumo General";
 
           let montoCompra = 0;
-          let coincidencias;
           let todosLosMontos = [];
 
           const regexGeneral = /\b([0-9]{1,5}\.[0-9]{2})\b/g;
@@ -377,19 +376,20 @@
             montoCompra = Math.max(...todosLosMontos);
           }
 
+          // --- SECCIÓN CORREGIDA: INTERRUPCIÓN Y RE-CÁLCULO EXACTO ---
           let confirmNombre = prompt("Confirma o escribe el nombre del Establecimiento del ticket:", nombreEstablecimiento);
           if (confirmNombre) nombreEstablecimiento = confirmNombre;
 
           let confirmMonto = prompt("Confirma o introduce el Monto Total ($) exacto del ticket:", montoCompra > 0 ? montoCompra : "0.00");
           if (confirmMonto) montoCompra = parseFloat(confirmMonto) || 0;
 
+          // Buscamos de nuevo basándonos estrictamente en lo que el usuario validó en el prompt
           let comercioFinal = comerciosOfertas.find(c => 
             nombreEstablecimiento.toLowerCase().includes(c.nombre.toLowerCase())
           );
 
-          // Si no es un comercio registrado, se vuelve Ticket General con 1% de cashback fijo
           if (!comercioFinal) {
-            comercioFinal = { nombre: nombreEstablecimiento, tipo: "cashback", valor: 0.01, min: 0 };
+            comercioFinal = { nombre: nombreEstablecimiento, tipo: "cashback", valor: 0.03, min: 0 }; // 3% Consumo General
           }
 
           let cashbackGanado = 0;
@@ -420,12 +420,12 @@
           };
 
           panelDetalles.innerHTML = `
-            <strong>🏪 Establecimiento Reconocido:</strong> ${comercioFinal.nombre}<br>
+            <strong>🏪 Establecimiento Confirmado:</strong> ${comercioFinal.nombre}<br>
             <strong>📄 Archivo Analizado:</strong> ${file.name}<br>
-            <strong>💵 Monto Máximo Detectado por el OCR:</strong> $${montoCompra.toFixed(2)}<br>
+            <strong>💵 Monto Validado:</strong> $${montoCompra.toFixed(2)}<br>
             <strong>📢 Estado de Validación:</strong> ${mensajeRegla}<br>
             <hr style="border:1px solid #333;">
-            <span style="color:#00ff66; font-weight:bold;">Beneficio Detectado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
+            <span style="color:#00ff66; font-weight:bold;">Beneficio Calculado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
           `;
 
           document.getElementById("btnSumar").style.display = "block";
