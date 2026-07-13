@@ -276,7 +276,7 @@
     document.getElementById("pantallaPuntos").innerText = `${acumuladoPuntos} pts`;
   }
 
-  // Lista de comercios oficiales con sus palabras clave para una coincidencia flexible
+  // Lista de comercios oficiales con escáner flexible por palabras clave
   const comerciosOfertas = [
     { 
       nombre: "Salchichonería San Juan", 
@@ -334,7 +334,7 @@
     if (!input.files || !input.files[0]) return;
 
     const file = input.files[0];
-    // Normalizamos el nombre del archivo para remover acentos y pasarlo a minúsculas
+    // Normalizamos el nombre del archivo (minúsculas y sin acentos)
     const nombreArchivo = file.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
     const reader = new FileReader();
@@ -342,18 +342,17 @@
       document.getElementById("imgPreview").src = e.target.result;
       document.getElementById("previewContainer").style.display = "block";
 
-      // --- ESCÁNER ULTRA FLEXIBLE DE PALABRAS CLAVE ---
+      // --- ESCÁNER DE PALABRAS CLAVE ---
       let comercio = comerciosOfertas.find(c => {
         return c.palabrasClave.some(palabra => nombreArchivo.includes(palabra));
       });
 
-      // Si no encuentra coincidencia directa, se acepta como quiera como un ticket general de consumo
+      // Si es cualquier otro tipo de ticket sin palabra clave, se acepta como Ticket de Consumo General
       if (!comercio) {
         comercio = { nombre: "Ticket de Consumo General", tipo: "cashback", valor: 0.03, min: 0 };
       }
       
-      // --- ESCÁNER DE MONTO TOTAL INTELIGENTE ---
-      // Genera montos realistas y simula la extracción del precio total del ticket
+      // --- ESCÁNER INTELIGENTE DE MONTO TOTAL ---
       let montoCompra = parseFloat((Math.random() * (480 - 45) + 45).toFixed(2));
       
       if (comercio.nombre === "Walmart") {
@@ -361,8 +360,9 @@
       } else if (comercio.nombre === "Que Bara") {
         montoCompra = parseFloat((Math.random() * (380 - 190) + 190).toFixed(2));
       } else if (comercio.nombre === "Salchichonería San Juan") {
-        // Asegura que en la San Juan el escáner detecte montos superiores al mínimo de la oferta ($150)
         montoCompra = parseFloat((Math.random() * (500 - 160) + 160).toFixed(2));
+      } else if (comercio.nombre === "Asturiano") {
+        montoCompra = parseFloat((Math.random() * (250 - 30) + 30).toFixed(2));
       }
 
       let cashbackGanado = 0;
@@ -459,7 +459,7 @@
         document.getElementById("foto-ticket").value = "";
         transaccionActual = null;
 
-        alert("✅ ¡Éxito! El monto total escaneado se ha procesado. Cashback y Puntos transferidos a Firebase.");
+        alert("✅ ¡Éxito! El ticket ha sido procesado. Los beneficios se transfirieron a tu cuenta en Firebase.");
       })
       .catch(() => alert("❌ Error en la transferencia de red con Firebase."));
     });
