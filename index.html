@@ -291,19 +291,19 @@
 
   // Lista de comercios base
   const comerciosOfertas = [
-    { id: 1, nombre: "Gasolineras", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "gasolina", "reman", "pemex"], tipo: "cashback", valorBase: 0.02, fija: true }, // Fija al 2% base
+    { id: 1, nombre: "Gasolineras", palabrasClave: ["g500", "g 500", "zumpango", "constituyentes", "gasolina", "reman", "pemex"], tipo: "cashback", valorBase: 0.02, fija: true },
     { id: 2, nombre: "Farmacia Guadalajara", palabrasClave: ["guadalajara", "superfarma", "farmacias guadalajara"], tipo: "cashback", valorBase: 0.025, fija: false },
     { id: 3, nombre: "Asturiano", palabrasClave: ["asturiano", "tienda asturiano"], tipo: "cashback", valorBase: 0.04, fija: false },
     { id: 4, nombre: "Salchichonería San Juan", palabrasClave: ["salchichoneria san juan", "san juan embutidos"], tipo: "cashback", valorBase: 0.025, fija: false },
     { id: 5, nombre: "The Italian Coffee", palabrasClave: ["italian", "coffee", "the italian"], tipo: "puntos", valorBase: 60, fija: false },
     { id: 6, nombre: "Que Bara", palabrasClave: ["que bara", "bara"], tipo: "puntos", valorBase: 30, fija: false },
-    { id: 7, merge: "Walmart", nombre: "Walmart", palabrasClave: ["walmart", "supercenter"], tipo: "puntos", valorBase: 55, fija: false }
+    { id: 7, nombre: "Walmart", palabrasClave: ["walmart", "supercenter"], tipo: "puntos", valorBase: 55, fija: false }
   ];
 
   async function procesarTicketReal(event) {
     const correo = document.getElementById("correo").value.trim();
     if (!correo) {
-      alert("⚠️ Primero debes ingresar tu correo electrónico para vincular tus saldos.");
+      alert("⚠️ Primero debes ingresar tu correo electrónico.");
       event.target.value = "";
       return;
     }
@@ -364,7 +364,6 @@
           comercioFinal = { id: 99, nombre: nombreEstablecimiento, tipo: "cashback", valorBase: 0.02, fija: true };
         }
 
-        // --- CALCULO CON FILTRO DE EXCEPCIÓN ---
         let factorDia = comercioFinal.fija ? 1.0 : obtenerFactorDia(comercioFinal.id); 
         let cashbackGanado = 0;
         let puntosGanados = 0;
@@ -372,28 +371,20 @@
 
         if (comercioFinal.tipo === "cashback") {
           let tasaDelDia = comercioFinal.valorBase * factorDia;
-          
-          // Regla Inversa proporcional al monto
           let tasaFinalEfectiva = tasaDelDia / (1 + (montoCompra / 2500));
           
-          // Topes estrictos
           if (tasaFinalEfectiva > 0.05) tasaFinalEfectiva = 0.05;
           if (tasaFinalEfectiva < 0.002) tasaFinalEfectiva = 0.002;
 
           cashbackGanado = montoCompra * tasaFinalEfectiva;
-          
-          if(comercioFinal.fija) {
-            mensajeRegla = `Promoción fija de Gasolineras balanceada por costo: ${(tasaFinalEfectiva * 100).toFixed(2)}% de cashback.`;
-          } else {
-            mensajeRegla = `Oferta del día ajustada por costo del ticket: ${(tasaFinalEfectiva * 100).toFixed(2)}% de cashback asignado.`;
-          }
+          mensajeRegla = `Porcentaje del día ajustado por monto: ${(tasaFinalEfectiva * 100).toFixed(2)}% de cashback asignado.`;
           
         } else if (comercioFinal.tipo === "puntos") {
           let puntosBaseDia = comercioFinal.valorBase * factorDia;
           let puntosFinales = puntosBaseDia / (1 + (montoCompra / 1500));
           puntosGanados = Math.max(1, Math.round(puntosFinales));
           
-          mensajeRegla = `Bonificación del día calibrada por costo de compra: +${puntosGanados} puntos asignados.`;
+          mensajeRegla = `Bonificación calibrada por costo: +${puntosGanados} puntos asignados ($${(puntosGanados * 0.20).toFixed(2)} transferibles a débito).`;
         }
 
         transaccionActual = {
@@ -407,9 +398,9 @@
           <strong>🏪 Establecimiento Reconocido:</strong> ${comercioFinal.nombre}<br>
           <strong>📄 Archivo Analizado:</strong> ${file.name}<br>
           <strong>💵 Monto Total Escaneado:</strong> $${montoCompra.toFixed(2)}<br>
-          <strong>📢 Regla de Variación Aplicada:</strong> ${mensajeRegla}<br>
+          <strong>📢 Regla Aplicada:</strong> ${mensajeRegla}<br>
           <hr style="border:1px solid #333;">
-          <span style="color:#00ff66; font-weight:bold;">Beneficio Calculado: +$${cashbackGanado.toFixed(2)} Cashback | +${puntosGanados} Puntos</span>
+          <span style="color:#00ff66; font-weight:bold;">Beneficio Directo a Tarjeta: +$${cashbackGanado.toFixed(2)} por Cashback | +$${(puntosGanados * 0.20).toFixed(2)} por Puntos</span>
         `;
 
         document.getElementById("btnSumar").style.display = "block";
@@ -437,7 +428,13 @@
       let saldoCashbackTotal = data.cashbackAcumulado !== undefined ? parseFloat(data.cashbackAcumulado) : 0.00;
       let saldoPuntos = data.puntos !== undefined ? parseInt(data.puntos) : 0;
 
-      let nuevoDebito = saldoDebito + transaccionActual.cashback;
+      // REGLA: Convertir puntos ganados a dinero líquido ($0.20 por punto)
+      let dineroPorPuntos = transaccionActual.puntos * 0.20;
+
+      // El saldo real de la tarjeta recibe la suma de todo: Cashback + Valor en efectivo de los puntos
+      let nuevoDebito = saldoDebito + transaccionActual.cashback + dineroPorPuntos;
+      
+      // Mantenemos los contadores históricos y de visualización independientes
       let nuevoCashbackTotal = saldoCashbackTotal + transaccionActual.cashback;
       let nuevosPuntos = saldoPuntos + transaccionActual.puntos;
 
@@ -453,7 +450,8 @@
           hora: fechaStr,
           comercio: transaccionActual.comercio,
           cashback: transaccionActual.cashback.toFixed(2),
-          puntos: transaccionActual.puntos
+          puntos: transaccionActual.puntos,
+          dineroInyectado: (transaccionActual.cashback + dineroPorPuntos).toFixed(2)
         });
 
         actualizarMarcadores();
@@ -465,7 +463,7 @@
         document.getElementById("foto-ticket").value = "";
         transaccionActual = null;
 
-        alert("✅ ¡Modificación de saldos exitosa con reglas dinámicas!");
+        alert("✅ ¡Éxito! Cashback y dinero de puntos depositados directo a tu saldo de débito.");
       })
       .catch(() => alert("❌ Error de red al sincronizar con Firebase."));
     });
@@ -483,7 +481,7 @@
     historialTransacciones.forEach((item) => {
       contenedor.innerHTML += `
         <div class="historial-item">
-          <strong>${item.comercio}</strong> (${item.hora}) — Recibiste: <span style="color:#fff;">+$${item.cashback}</span> y <span style="color:#00ff99;">+${item.puntos} pts</span>
+          <strong>${item.comercio}</strong> (${item.hora}) — Enviados a Tarjeta: <span style="color:#fff; font-weight:bold;">+$${item.dineroInyectado} MXN</span> (De los cuales: +$${item.cashback} fue cashback y +${item.puntos} pts)
         </div>
       `;
     });
